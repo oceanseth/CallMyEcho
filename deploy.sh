@@ -49,38 +49,52 @@ fi
 echo -e "${GREEN}✅ Prerequisites check passed${NC}"
 echo ""
 
-# Check environment variables
-echo -e "${YELLOW}🔧 Checking environment variables...${NC}"
+# Check and create SSM parameters
+echo -e "${YELLOW}🔧 Checking SSM parameters...${NC}"
 
-if [ -z "$HUME_API_KEY" ]; then
-    echo -e "${RED}❌ HUME_API_KEY is not set${NC}"
-    echo "Please set your Hume AI API key:"
-    echo "export HUME_API_KEY=your_api_key"
+# Function to create SSM parameter if it doesn't exist
+create_ssm_parameter() {
+    local param_name=$1
+    local param_value=$2
+    local param_description=$3
+
+    if aws ssm get-parameter --name "$param_name" --region "$REGION" >/dev/null 2>&1; then
+        echo -e "${GREEN}✅ Parameter $param_name already exists${NC}"
+    else
+        echo -e "${YELLOW}🔧 Creating SSM parameter: $param_name${NC}"
+        aws ssm put-parameter \
+            --name "$param_name" \
+            --value "$param_value" \
+            --type "SecureString" \
+            --description "$param_description" \
+            --region "$REGION"
+        echo -e "${GREEN}✅ Created parameter: $param_name${NC}"
+    fi
+}
+
+# Check if .env file exists and load values
+if [ -f ".env" ]; then
+    echo -e "${YELLOW}📋 Loading values from .env file...${NC}"
+    source .env
+
+    # Create SSM parameters
+    create_ssm_parameter "/callmyecho/$ENVIRONMENT/hume-api-key" "$HUME_API_KEY" "Hume AI API Key for CallMyEcho"
+    create_ssm_parameter "/callmyecho/$ENVIRONMENT/hume-secret-key" "$HUME_SECRET_KEY" "Hume AI Secret Key for CallMyEcho"
+    create_ssm_parameter "/callmyecho/$ENVIRONMENT/twilio-auth-token" "$TWILIO_AUTH_TOKEN" "Twilio Auth Token for CallMyEcho"
+    create_ssm_parameter "/callmyecho/$ENVIRONMENT/twilio-account-sid" "$TWILIO_ACCOUNT_SID" "Twilio Account SID for CallMyEcho"
+
+    echo -e "${GREEN}✅ SSM parameters configured${NC}"
+else
+    echo -e "${RED}❌ .env file not found${NC}"
+    echo "Please create a .env file with your API keys, or set the SSM parameters manually:"
+    echo ""
+    echo "aws ssm put-parameter --name '/callmyecho/$ENVIRONMENT/HUME_API_KEY' --value 'your_key' --type SecureString"
+    echo "aws ssm put-parameter --name '/callmyecho/$ENVIRONMENT/HUME_SECRET_KEY' --value 'your_secret' --type SecureString"
+    echo "aws ssm put-parameter --name '/callmyecho/$ENVIRONMENT/TWILIO_AUTH_TOKEN' --value 'your_token' --type SecureString"
+    echo "aws ssm put-parameter --name '/callmyecho/$ENVIRONMENT/TWILIO_ACCOUNT_SID' --value 'your_sid' --type SecureString"
     exit 1
 fi
 
-if [ -z "$HUME_SECRET_KEY" ]; then
-    echo -e "${RED}❌ HUME_SECRET_KEY is not set${NC}"
-    echo "Please set your Hume AI secret key:"
-    echo "export HUME_SECRET_KEY=your_secret_key"
-    exit 1
-fi
-
-if [ -z "$TWILIO_AUTH_TOKEN" ]; then
-    echo -e "${RED}❌ TWILIO_AUTH_TOKEN is not set${NC}"
-    echo "Please set your Twilio auth token:"
-    echo "export TWILIO_AUTH_TOKEN=your_auth_token"
-    exit 1
-fi
-
-if [ -z "$TWILIO_ACCOUNT_SID" ]; then
-    echo -e "${RED}❌ TWILIO_ACCOUNT_SID is not set${NC}"
-    echo "Please set your Twilio account SID:"
-    echo "export TWILIO_ACCOUNT_SID=your_account_sid"
-    exit 1
-fi
-
-echo -e "${GREEN}✅ Environment variables check passed${NC}"
 echo ""
 
 # Install dependencies

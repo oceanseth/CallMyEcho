@@ -9,10 +9,10 @@ provider:
   timeout: 30
   environment:
     STAGE: ${self:provider.stage}
-    HUME_API_KEY: ${env:HUME_API_KEY}
-    HUME_SECRET_KEY: ${env:HUME_SECRET_KEY}
-    TWILIO_AUTH_TOKEN: ${env:TWILIO_AUTH_TOKEN}
-    TWILIO_ACCOUNT_SID: ${env:TWILIO_ACCOUNT_SID}
+    HUME_API_KEY: ${ssm:/callmyecho/prod/hume-api}
+    HUME_SECRET_KEY: ${ssm:/callmyecho/prod/hume-secret}
+    TWILIO_AUTH_TOKEN: ${ssm:/callmyecho/prod/twilio-auth}
+    TWILIO_ACCOUNT_SID: ${ssm:/callmyecho/prod/twilio-account}
   iamRoleStatements:
     - Effect: Allow
       Action:
@@ -20,6 +20,12 @@ provider:
         - logs:CreateLogStream
         - logs:PutLogEvents
       Resource: "arn:aws:logs:*:*:*"
+    - Effect: Allow
+      Action:
+        - ssm:GetParameter
+        - ssm:GetParameters
+      Resource:
+        - "arn:aws:ssm:${aws:region}:${aws:accountId}:parameter/callmyecho/prod/*"
 
 functions:
   twilioWebhook:
@@ -43,59 +49,6 @@ functions:
       FUNCTION_NAME: healthCheck
 
 plugins:
-  - serverless-domain-manager
   - serverless-offline
 
-custom:
-  customDomain:
-    domainName: ${self:provider.stage}.callmyecho.com
-    stage: ${self:provider.stage}
-    certificateName: '*.callmyecho.com'
-    createRoute53Record: true
-    endpointType: 'regional'
-    securityPolicy: tls_1_2
-    apiType: rest
-    autoDomain: false
-
-resources:
-  Resources:
-    # Custom domain certificate
-    CallMyEchoCertificate:
-      Type: AWS::CertificateManager::Certificate
-      Properties:
-        DomainName: callmyecho.com
-        SubjectAlternativeNames:
-          - '*.callmyecho.com'
-        ValidationMethod: DNS
-        DomainValidationOptions:
-          - DomainName: callmyecho.com
-            HostedZoneId: !Ref CallMyEchoHostedZone
-          - DomainName: '*.callmyecho.com'
-            HostedZoneId: !Ref CallMyEchoHostedZone
-
-    # Route53 Hosted Zone
-    CallMyEchoHostedZone:
-      Type: AWS::Route53::HostedZone
-      Properties:
-        Name: callmyecho.com
-        HostedZoneConfig:
-          Comment: "Hosted zone for CallMyEcho service"
-
-  Outputs:
-    HostedZoneId:
-      Description: "Route53 Hosted Zone ID"
-      Value: !Ref CallMyEchoHostedZone
-      Export:
-        Name: ${self:service}-${self:provider.stage}-hosted-zone-id
-
-    CertificateArn:
-      Description: "SSL Certificate ARN"
-      Value: !Ref CallMyEchoCertificate
-      Export:
-        Name: ${self:service}-${self:provider.stage}-certificate-arn
-
-    ApiGatewayUrl:
-      Description: "API Gateway URL"
-      Value: !Sub "https://${RestApiApigEvent}.execute-api.${AWS::Region}.amazonaws.com/${self:provider.stage}"
-      Export:
-        Name: ${self:service}-${self:provider.stage}-api-url
+# Simplified deployment - will add CloudFront and custom domain after basic deployment works
