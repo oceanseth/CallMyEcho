@@ -1,0 +1,42 @@
+{
+  "name": "callmyecho",
+  "version": "1.0.0",
+  "description": "Twilio-Hume EVI integration service for emotional speech-to-speech processing",
+  "main": "index.js",
+  "scripts": {
+    "deploy": "serverless deploy",
+    "deploy:prod": "serverless deploy --stage prod",
+    "remove": "serverless remove",
+    "logs": "serverless logs -f twilioWebhook",
+    "test": "jest",
+    "lint": "eslint src/",
+    "format": "prettier --write src/"
+  },
+  "dependencies": {
+    "node-fetch": "^3.3.2",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "serverless": "^3.38.0",
+    "serverless-domain-manager": "^7.3.0",
+    "serverless-offline": "^13.3.0",
+    "eslint": "^8.56.0",
+    "prettier": "^3.1.1",
+    "jest": "^29.7.0"
+  },
+  "keywords": [
+    "twilio",
+    "hume",
+    "evi",
+    "emotional-ai",
+    "speech-to-speech",
+    "serverless",
+    "aws",
+    "lambda"
+  ],
+  "author": "CallMyEcho",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

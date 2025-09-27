@@ -1,0 +1,129 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Route53 hosted zone and certificate setup for CallMyEcho domain'
+
+Parameters:
+  DomainName:
+    Type: String
+    Default: callmyecho.com
+    Description: The domain name for the CallMyEcho service
+
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+    Description: Environment name
+
+Resources:
+  # Route53 Hosted Zone
+  HostedZone:
+    Type: AWS::Route53::HostedZone
+    Properties:
+      Name: !Ref DomainName
+      HostedZoneConfig:
+        Comment: !Sub 'Hosted zone for ${DomainName} - CallMyEcho service'
+      HostedZoneTags:
+        - Key: Project
+          Value: CallMyEcho
+        - Key: Environment
+          Value: !Ref Environment
+
+  # SSL Certificate for HTTPS
+  SSLCertificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Ref DomainName
+      SubjectAlternativeNames:
+        - !Sub '*.${DomainName}'
+        - !Sub 'api.${DomainName}'
+        - !Sub 'webhook.${DomainName}'
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Ref DomainName
+          HostedZoneId: !Ref HostedZone
+        - DomainName: !Sub '*.${DomainName}'
+          HostedZoneId: !Ref HostedZone
+        - DomainName: !Sub 'api.${DomainName}'
+          HostedZoneId: !Ref HostedZone
+        - DomainName: !Sub 'webhook.${DomainName}'
+          HostedZoneId: !Ref HostedZone
+      Tags:
+        - Key: Project
+          Value: CallMyEcho
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Health check for the main domain
+  HealthCheck:
+    Type: AWS::Route53::HealthCheck
+    Properties:
+      Type: HTTPS
+      ResourcePath: /health
+      FullyQualifiedDomainName: !Sub '${Environment}.${DomainName}'
+      Port: 443
+      RequestInterval: 30
+      FailureThreshold: 3
+      Tags:
+        - Key: Name
+          Value: !Sub 'CallMyEcho-${Environment}-HealthCheck'
+        - Key: Project
+          Value: CallMyEcho
+        - Key: Environment
+          Value: !Ref Environment
+
+  # CloudWatch alarm for health check
+  HealthCheckAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub 'CallMyEcho-${Environment}-HealthCheck-Failed'
+      AlarmDescription: 'Alarm when health check fails'
+      MetricName: HealthCheckStatus
+      Namespace: AWS/Route53
+      Statistic: Minimum
+      Period: 60
+      EvaluationPeriods: 2
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      Dimensions:
+        - Name: HealthCheckId
+          Value: !Ref HealthCheck
+      TreatMissingData: breaching
+
+Outputs:
+  HostedZoneId:
+    Description: 'Route53 Hosted Zone ID'
+    Value: !Ref HostedZone
+    Export:
+      Name: !Sub '${AWS::StackName}-HostedZoneId'
+
+  HostedZoneNameServers:
+    Description: 'Name servers for the hosted zone'
+    Value: !Join [',', !GetAtt HostedZone.NameServers]
+    Export:
+      Name: !Sub '${AWS::StackName}-NameServers'
+
+  CertificateArn:
+    Description: 'SSL Certificate ARN for HTTPS'
+    Value: !Ref SSLCertificate
+    Export:
+      Name: !Sub '${AWS::StackName}-CertificateArn'
+
+  DomainName:
+    Description: 'Primary domain name'
+    Value: !Ref DomainName
+    Export:
+      Name: !Sub '${AWS::StackName}-DomainName'
+
+  HealthCheckId:
+    Description: 'Health check ID'
+    Value: !Ref HealthCheck
+    Export:
+      Name: !Sub '${AWS::StackName}-HealthCheckId'
+
+  SubdomainPrefix:
+    Description: 'Subdomain prefix for this environment'
+    Value: !Sub '${Environment}.${DomainName}'
+    Export:
+      Name: !Sub '${AWS::StackName}-SubdomainPrefix'

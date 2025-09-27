@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:dev.hume.ai)",
+      "WebSearch"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

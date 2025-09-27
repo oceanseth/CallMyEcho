@@ -1,0 +1,101 @@
+service: callmyecho
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: us-east-1
+  stage: ${opt:stage, 'dev'}
+  memorySize: 1024
+  timeout: 30
+  environment:
+    STAGE: ${self:provider.stage}
+    HUME_API_KEY: ${env:HUME_API_KEY}
+    HUME_SECRET_KEY: ${env:HUME_SECRET_KEY}
+    TWILIO_AUTH_TOKEN: ${env:TWILIO_AUTH_TOKEN}
+    TWILIO_ACCOUNT_SID: ${env:TWILIO_ACCOUNT_SID}
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - logs:CreateLogGroup
+        - logs:CreateLogStream
+        - logs:PutLogEvents
+      Resource: "arn:aws:logs:*:*:*"
+
+functions:
+  twilioWebhook:
+    handler: src/handlers/twilioWebhook.handler
+    events:
+      - http:
+          path: /webhook/twilio
+          method: post
+          cors: false
+    environment:
+      FUNCTION_NAME: twilioWebhook
+
+  healthCheck:
+    handler: src/handlers/health.handler
+    events:
+      - http:
+          path: /health
+          method: get
+          cors: true
+    environment:
+      FUNCTION_NAME: healthCheck
+
+plugins:
+  - serverless-domain-manager
+  - serverless-offline
+
+custom:
+  customDomain:
+    domainName: ${self:provider.stage}.callmyecho.com
+    stage: ${self:provider.stage}
+    certificateName: '*.callmyecho.com'
+    createRoute53Record: true
+    endpointType: 'regional'
+    securityPolicy: tls_1_2
+    apiType: rest
+    autoDomain: false
+
+resources:
+  Resources:
+    # Custom domain certificate
+    CallMyEchoCertificate:
+      Type: AWS::CertificateManager::Certificate
+      Properties:
+        DomainName: callmyecho.com
+        SubjectAlternativeNames:
+          - '*.callmyecho.com'
+        ValidationMethod: DNS
+        DomainValidationOptions:
+          - DomainName: callmyecho.com
+            HostedZoneId: !Ref CallMyEchoHostedZone
+          - DomainName: '*.callmyecho.com'
+            HostedZoneId: !Ref CallMyEchoHostedZone
+
+    # Route53 Hosted Zone
+    CallMyEchoHostedZone:
+      Type: AWS::Route53::HostedZone
+      Properties:
+        Name: callmyecho.com
+        HostedZoneConfig:
+          Comment: "Hosted zone for CallMyEcho service"
+
+  Outputs:
+    HostedZoneId:
+      Description: "Route53 Hosted Zone ID"
+      Value: !Ref CallMyEchoHostedZone
+      Export:
+        Name: ${self:service}-${self:provider.stage}-hosted-zone-id
+
+    CertificateArn:
+      Description: "SSL Certificate ARN"
+      Value: !Ref CallMyEchoCertificate
+      Export:
+        Name: ${self:service}-${self:provider.stage}-certificate-arn
+
+    ApiGatewayUrl:
+      Description: "API Gateway URL"
+      Value: !Sub "https://${RestApiApigEvent}.execute-api.${AWS::Region}.amazonaws.com/${self:provider.stage}"
+      Export:
+        Name: ${self:service}-${self:provider.stage}-api-url
